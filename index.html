@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Cube with Infinite Extrusions + Multi-View</title>
+  <style>
+    body { margin: 0; overflow: hidden; background: #000; color: #fff; font-family: sans-serif; }
+    /* body { margin: 0; overflow: hidden; background: #fff; font-family: sans-serif; } */
+    #ui {
+      position: absolute;
+      left: 10px;
+      top: 10px;
+      width: 180px;
+      background: rgba(30,30,30,0.9);
+      /* background: rgba(240,240,240,0.95); */
+      padding: 12px;
+      border-radius: 8px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+    }
+    label { font-size: 12px; display: block; margin-top: 10px; }
+    input { width: 100%; }
+  </style>
+</head>
+<body>
+  <div id="ui">
+    <label>Rotate X<input id="rx" type="range" min="-3.14" max="3.14" step="0.01" value="0.5"></label>
+    <label>Rotate Y<input id="ry" type="range" min="-3.14" max="3.14" step="0.01" value="0.7"></label>
+    <label>Rotate Z<input id="rz" type="range" min="-3.14" max="3.14" step="0.01" value="0"></label>
+    <label>Zoom<input id="zoom" type="range" min="3" max="10" step="0.1" value="5"></label>
+  </div>
+
+  <script type="module">
+    // https://threejs.org/docs/
+    import * as THREE from 'https://unpkg.com/three@0.161.0/build/three.module.js';
+
+    // ---------------- SCENE ----------------
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x606060);
+    // scene.background = new THREE.Color(0xffffff);
+
+    // ---------------- CAMERAS ----------------
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 10000);
+    const zoom = document.getElementById('zoom');
+    camera.position.z = zoom.value;
+    camera.layers.enable(0);
+    camera.layers.enable(1);
+
+    const orthoSize = 3;
+    const camTop = new THREE.OrthographicCamera(-orthoSize, orthoSize, orthoSize, -orthoSize, 0.1, 10000);
+    camTop.position.set(0, 50, 0);
+    // camTop.up.set(0, 0, -1);
+    camTop.lookAt(0, 0, 0);
+    
+    const camSideX = new THREE.OrthographicCamera(-orthoSize, orthoSize, orthoSize, -orthoSize, 0.1, 10000);
+    camSideX.position.set(-50, 0, 0);
+    // camSideX.up.set(0, 0, -1);
+    camSideX.lookAt(0, 0, 0);
+
+    const camSideZ = new THREE.OrthographicCamera(-orthoSize, orthoSize, orthoSize, -orthoSize, 0.1, 10000);
+    camSideZ.position.set(0, 0, 50);
+    // camSideZ.up.set(0, 0, -1);
+    camSideZ.lookAt(0, 0, 0);
+
+    // ---------------- RENDERER ----------------
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    document.body.appendChild(renderer.domElement);
+
+    // ---------------- OBJECTS ----------------
+
+    // AXES
+    const axes = new THREE.AxesHelper(1);
+    scene.add(axes);
+
+    // CUBE
+    const extent = 3000;
+    const s = 1;
+    const cube_extent = 1;
+
+    const box = new THREE.Mesh(
+      new THREE.BoxGeometry(2, 2, 2),
+      new THREE.MeshBasicMaterial({ color: 0x5555ff, transparent: true, opacity: 0.35, depthWrite: false})
+    );
+    box.layers.set(0);
+
+    const cube_lines = [
+      [[-s,-s,-s],[s,-s,-s]], [[-s,s,-s],[s,s,-s]],
+      [[-s,-s,s],[s,-s,s]], [[-s,s,s],[s,s,s]],
+      [[-s,-s,-s],[-s,s,-s]], [[s,-s,-s],[s,s,-s]],
+      [[-s,-s,s],[-s,s,s]], [[s,-s,s],[s,s,s]],
+      [[-s,-s,-s],[-s,-s,s]], [[s,-s,-s],[s,-s,s]],
+      [[-s,s,-s],[-s,s,s]], [[s,s,-s],[s,s,s]]
+    ];
+    const cube_lines_group = new THREE.Group();
+    const cube_lines_mat = new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.45});
+    // const cube_lines_mat = new THREE.LineBasicMaterial({ color: 0x5555ff, transparent: true, opacity: 0.5});
+
+    cube_lines.forEach(([a,b]) => {
+      const g = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(...a), new THREE.Vector3(...b)
+      ]);
+      const new_line = new THREE.Line(g, cube_lines_mat);
+      cube_lines_group.add(new_line);
+    });
+    scene.add(cube_lines_group);
+    const box_group = new THREE.Group();
+    box_group.add(cube_lines_group)
+    scene.add(box_group);
+
+    const lines = [
+      [[-extent,-s,-s],[extent,-s,-s]], [[-extent,s,-s],[extent,s,-s]],
+      [[-extent,-s,s],[extent,-s,s]], [[-extent,s,s],[extent,s,s]],
+      [[-s,-extent,-s],[-s,extent,-s]], [[s,-extent,-s],[s,extent,-s]],
+      [[-s,-extent,s],[-s,extent,s]], [[s,-extent,s],[s,extent,s]],
+      [[-s,-s,-extent],[-s,-s,extent]], [[s,-s,-extent],[s,-s,extent]],
+      [[-s,s,-extent],[-s,s,extent]], [[s,s,-extent],[s,s,extent]]
+    ];
+
+    // CUBE VANISHING LINES
+    const group = new THREE.Group();
+    const mat = new THREE.LineBasicMaterial({ color: 0x888888, transparent: true, opacity: 0.2 });
+
+    lines.forEach(([a,b]) => {
+      const g = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(...a), new THREE.Vector3(...b)
+      ]);
+      const new_line = new THREE.Line(g, mat);
+      new_line.layers.set(0);
+      new_line.layers.set(1);
+      group.add(new_line);
+    });
+    scene.add(group);
+
+    // SPHERE
+    const radius = Math.sqrt(3);
+    const sphere = new THREE.Mesh(
+      new THREE.SphereGeometry(radius, 64, 48),
+      new THREE.MeshBasicMaterial({
+        // color: 0x999999,
+        color: 0xc7c7c7,
+        transparent: true,
+        opacity: 0.2,
+        depthWrite: false
+      })
+    );
+    sphere.layers.set(0);
+    scene.add(sphere);
+
+
+
+    // ---------------- ROTATION STATE ----------------
+    const rotation = { x: 0.5, y: 0.7, z: 0.0 };
+
+    const ry = document.getElementById('rx');
+    const rz = document.getElementById('ry');
+    const rx = document.getElementById('rz');
+    // const zoom = document.getElementById('zoom');
+
+    function applyRotation() {
+      group.rotation.set(rotation.x, rotation.y, rotation.z);
+      box_group.rotation.copy(group.rotation);
+      sphere.rotation.copy(group.rotation);
+      axes.rotation.copy(group.rotation);
+
+      rx.value = rotation.x;
+      ry.value = rotation.y;
+      rz.value = rotation.z;
+    }
+
+    rx.addEventListener('input', () => { rotation.x = +rx.value; applyRotation(); });
+    ry.addEventListener('input', () => { rotation.y = +ry.value; applyRotation(); });
+    rz.addEventListener('input', () => { rotation.z = +rz.value; applyRotation(); });
+
+    zoom.addEventListener('input', () => {
+      camera.position.z = +zoom.value;
+      camera.lookAt(0,0,0);
+    });
+
+    applyRotation();
+
+    // ---------------- MOUSE ROTATION ----------------
+    let down = false, lx = 0, ly = 0;
+    renderer.domElement.addEventListener('mousedown', e => { down = true; lx = e.clientX; ly = e.clientY; });
+    window.addEventListener('mouseup', () => down = false);
+    window.addEventListener('mousemove', e => {
+      if (!down) return;
+      rotation.y += (e.clientX - lx) * 0.005;
+      rotation.x += (e.clientY - ly) * 0.005;
+      applyRotation();
+      lx = e.clientX; ly = e.clientY;
+    });
+
+    // ---------------- RENDER LOOP (MULTI VIEW) ----------------
+    function renderView(cam, x, y, w, h) {
+      renderer.setViewport(x, y, w, h);
+      renderer.setScissor(x, y, w, h);
+      renderer.render(scene, cam);
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      renderer.setScissorTest(true);
+
+      // Main view
+      renderView(camera, 0, 0, window.innerWidth, window.innerHeight);
+
+      const size = Math.min(window.innerWidth, window.innerHeight) * 0.22;
+      const m = 16;
+
+      // Top view
+      renderView(camTop,
+        window.innerWidth - size - m,
+        window.innerHeight - size - m,
+        size, size
+      );
+
+      // Side X
+      renderView(camSideX,
+        window.innerWidth - size - m,
+        window.innerHeight - size * 2 - m * 2,
+        size, size
+      );
+
+      // Side Z
+      renderView(camSideZ,
+        window.innerWidth - size - m,
+        window.innerHeight - size * 3 - m * 3,
+        size, size
+      );
+    }
+
+    animate();
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    renderer.domElement.addEventListener('touchstart', e => {
+      down = true;
+      lx = e.touches[0].clientX;
+      ly = e.touches[0].clientY;
+    });
+
+    renderer.domElement.addEventListener('touchmove', e => {
+      if (!down) return;
+      rotation.y += (e.touches[0].clientX - lx) * 0.005;
+      rotation.x += (e.touches[0].clientY - ly) * 0.005;
+      applyRotation();
+      lx = e.touches[0].clientX;
+      ly = e.touches[0].clientY;
+    });
+
+renderer.domElement.addEventListener('touchend', () => down = false);
+  </script>
+</body>
+</html>
