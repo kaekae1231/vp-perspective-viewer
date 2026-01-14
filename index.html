@@ -10,7 +10,7 @@
       position: absolute;
       left: 10px;
       top: 10px;
-      width: 180px;
+      width: 350px;
       background: rgba(30,30,30,0.9);
       /* background: rgba(240,240,240,0.95); */
       padding: 12px;
@@ -29,7 +29,9 @@
     <!-- <label>Rotate X<input id="rx" type="range" min="-3.14" max="3.14" step="0.01" value="0.5"></label>
     <label>Rotate Y<input id="ry" type="range" min="-3.14" max="3.14" step="0.01" value="0.7"></label>
     <label>Rotate Z<input id="rz" type="range" min="-3.14" max="3.14" step="0.01" value="0"></label> -->
-    <label>Zoom<input id="zoom" type="range" min="1" max="8" step="0.5" value="5"></label>
+    <label>Zoom<span id="zoomContent"></span><input id="zoom" type="range" min="1" max="8" step="0.5" value="5"></label>
+    <label>Show Ghost<input id="chk_ghost" type="checkbox" checked="true"></label>
+    <label>Show 2D Views<input id="chk_2D" type="checkbox" checked="true"></label>
   </div>
 
   <script type="module">
@@ -68,27 +70,27 @@
     camera.position.z = 10 - zoom.value;
     camera.layers.enable(0);
     camera.layers.enable(1);
-
+    camera.layers.enable(2);
     
-    makeLabel('ORTHOGRAPHIC - 2D VIEWS', size/2, 10);
+    const lbl_2D = makeLabel('ORTHOGRAPHIC - 2D VIEWS', size/2, 10);
     const orthoSize = 3;
     const camTop = new THREE.OrthographicCamera(-orthoSize, orthoSize, orthoSize, -orthoSize, 0.1, 10000);
     camTop.position.set(0, 50, 0);
     // camTop.up.set(0, 0, -1);
     camTop.lookAt(0, 0, 0);
-    makeLabel('TOP', size/2, size - m);
+    const lbl_top = makeLabel('TOP', size/2, size - m);
     
     const camSideX = new THREE.OrthographicCamera(-orthoSize, orthoSize, orthoSize, -orthoSize, 0.1, 10000);
     camSideX.position.set(-50, 0, 0);
     // camSideX.up.set(0, 0, -1);
     camSideX.lookAt(0, 0, 0);
-    makeLabel('SIDE', size/2, size * 2);
+    const lbl_side = makeLabel('SIDE', size/2, size * 2);
     
     const camSideZ = new THREE.OrthographicCamera(-orthoSize, orthoSize, orthoSize, -orthoSize, 0.1, 10000);
     camSideZ.position.set(0, 0, 50);
     // camSideZ.up.set(0, 0, -1);
     camSideZ.lookAt(0, 0, 0);
-    makeLabel('FRONT', size/2-m/2, size * 3.1);
+    const lbl_front = makeLabel('FRONT', size/2-m/2, size * 3.1);
 
 
     // ---------------- RENDERER ----------------
@@ -114,8 +116,11 @@
     );
     box.layers.set(0);
 
-    const cube_lines = [
-      [[s,s,-s],[s,s,s]]
+    const cube_lines_ghost = [
+      [[-s,s,s],[s,s,s]],
+      [[-s,-s,s],[s,-s,s]],
+      [[s,-s,s],[s,s,s]],
+      [[-s,-s,s],[-s,s,s]]
     ];
     const cube_lines_top = [
       [[-s,s,-s],[s,s,-s]],
@@ -134,19 +139,22 @@
       [[-s,-s,s],[-s,s,s]], [[s,-s,s],[s,s,s]]
     ];
     const cube_lines_group = new THREE.Group();
+    const cube_lines_ghost_group = new THREE.Group();
+    const cube_lines_mat_ghost = new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.15});
     const cube_lines_mat = new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.5});
-    const cube_lines_mat_top = new THREE.LineBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.5});
-    const cube_lines_mat_sides = new THREE.LineBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.5});
-    const cube_lines_mat_bot = new THREE.LineBasicMaterial({ color: 0x0000ff, transparent: true, opacity: 0.5});
+    const cube_lines_mat_top = new THREE.LineBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.7});
+    const cube_lines_mat_sides = new THREE.LineBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.7});
+    const cube_lines_mat_bot = new THREE.LineBasicMaterial({ color: 0x0000ff, transparent: true, opacity: 0.7});
     // const cube_lines_mat = new THREE.LineBasicMaterial({ color: 0x5555ff, transparent: true, opacity: 0.5});
     
-    // cube_lines.forEach(([a,b]) => {
-    //   const g = new THREE.BufferGeometry().setFromPoints([
-    //     new THREE.Vector3(...a), new THREE.Vector3(...b)
-    //   ]);
-    //   const new_line = new THREE.Line(g, cube_lines_mat);
-    //   cube_lines_group.add(new_line);
-    // });
+    cube_lines_ghost.forEach(([a,b]) => {
+      const g = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(...a), new THREE.Vector3(...b)
+      ]);
+      const new_line = new THREE.Line(g, cube_lines_mat_ghost);
+      new_line.layers.set(2);
+      cube_lines_ghost_group.add(new_line);
+    });
     
     cube_lines_top.forEach(([a,b]) => {
       const g = new THREE.BufferGeometry().setFromPoints([
@@ -173,8 +181,9 @@
     });
     scene.add(cube_lines_group);
     const box_group = new THREE.Group();
-    box_group.add(cube_lines_group)
+    box_group.add(cube_lines_group);
     scene.add(box_group);
+    scene.add(cube_lines_ghost_group);
 
     const lines = [
       [[-extent,-s,-s],[extent,-s,-s]], [[-extent,s,-s],[extent,s,-s]],
@@ -199,6 +208,10 @@
       new_line.layers.set(1);
       group.add(new_line);
     });
+
+    const horizon = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.CircleGeometry(extent, 32)), mat);
+    horizon.rotateX(THREE.MathUtils.degToRad('90'));
+    group.add(horizon);
     scene.add(group);
 
     // SPHERE
@@ -218,8 +231,9 @@
 
 
 
-    // ---------------- ROTATION STATE ----------------
-    const rotation = { x: 0.5, y: 0.7, z: 0 };
+    // ---------------- VIEW STATE ----------------
+    // const rotation = { x: 0.5, y: 0.7, z: 0 };
+    const rotation = { x: 0, y: 0, z: 0 };
 
     const ry = document.getElementById('rx');
     const rz = document.getElementById('ry');
@@ -227,12 +241,15 @@
     const ryDeg = document.getElementById('rxDeg');
     const rzDeg = document.getElementById('ryDeg');
     const rxDeg = document.getElementById('rzDeg');
+    const zoomContent = document.getElementById('zoomContent');
+    const showGhost = document.getElementById('chk_ghost');
+    const show2D = document.getElementById('chk_2D');
     // const zoom = document.getElementById('zoom');
     
     function updateSlidersText() {
-      rxDeg.textContent = ' (' + THREE.MathUtils.radToDeg(rotation.x).toFixed(1) + '° )';
-      ryDeg.textContent = ' (' + THREE.MathUtils.radToDeg(rotation.y).toFixed(1) + '° )';
-      rzDeg.textContent = ' (' + THREE.MathUtils.radToDeg(rotation.z).toFixed(1) + '° )';
+      rxDeg.textContent = ' (' + THREE.MathUtils.radToDeg(rotation.x).toFixed(2) + '° )';
+      ryDeg.textContent = ' (' + THREE.MathUtils.radToDeg(rotation.y).toFixed(2) + '° )';
+      rzDeg.textContent = ' (' + THREE.MathUtils.radToDeg(rotation.z).toFixed(2) + '° )';
     }
 
     function applyRotation() {
@@ -267,6 +284,26 @@
     rx.addEventListener('input', () => { rotation.x = THREE.MathUtils.degToRad(+rx.value); applyRotation(); });
     ry.addEventListener('input', () => { rotation.y = THREE.MathUtils.degToRad(+ry.value); applyRotation(); });
     rz.addEventListener('input', () => { rotation.z = THREE.MathUtils.degToRad(+rz.value); applyRotation(); });
+    showGhost.addEventListener('input', () => {
+      if (showGhost.checked) {
+        camera.layers.enable(2);
+      } else {
+        camera.layers.disable(2);
+      }
+    });
+    show2D.addEventListener('input', () => {
+      if (show2D.checked) {
+        lbl_2D.style.visibility = 'visible';
+        lbl_top.style.visibility = 'visible';
+        lbl_side.style.visibility = 'visible';
+        lbl_front.style.visibility = 'visible';
+      } else {
+        lbl_2D.style.visibility = 'hidden';
+        lbl_top.style.visibility = 'hidden';
+        lbl_side.style.visibility = 'hidden';
+        lbl_front.style.visibility = 'hidden';
+      }
+    });
 
     zoom.addEventListener('input', () => {
       camera.position.z = 10 - zoom.value;
@@ -325,27 +362,28 @@
       // Main view
       renderView(camera, 0, 0, window.innerWidth, window.innerHeight);
       
-      
-      // Top view
-      renderView(camTop,
-        window.innerWidth - size - m,
-        window.innerHeight - size - m,
-        size, size
-      );
-
-      // Side X
-      renderView(camSideX,
-        window.innerWidth - size - m,
-        window.innerHeight - size * 2 - m * 2,
-        size, size
-      );
-
-      // Side Z
-      renderView(camSideZ,
-        window.innerWidth - size - m,
-        window.innerHeight - size * 3 - m * 3,
-        size, size
-      );
+      if (show2D.checked) {
+        // Top view
+        renderView(camTop,
+          window.innerWidth - size - m,
+          window.innerHeight - size - m,
+          size, size
+        );
+  
+        // Side X
+        renderView(camSideX,
+          window.innerWidth - size - m,
+          window.innerHeight - size * 2 - m * 2,
+          size, size
+        );
+  
+        // Side Z
+        renderView(camSideZ,
+          window.innerWidth - size - m,
+          window.innerHeight - size * 3 - m * 3,
+          size, size
+        );
+      };
     }
 
     animate();
