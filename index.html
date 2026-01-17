@@ -27,7 +27,7 @@
       box-shadow: 0 6px 20px rgba(0,0,0,0.15);
     }
     label { font-size: 12px; margin-top: 10px; }
-    input { width: 100%; }
+    input { width: 100%; margin-left: auto; margin-right: auto; }
     button { font-size: 16px; background-color: rgba(160,160,160,0.2); border-radius: 4px; }
   </style>
 </head>
@@ -42,11 +42,13 @@
     <label>Zoom<span id="zoomContent"></span><input id="zoom" type="range" min="1" max="8" step="0.5" value="5"></label>
     <label style="display: inline-block;">Show Ghost<input id="chk_ghost" type="checkbox" checked="true"></label>
     <label style="display: inline-block;">Show 2D Views<input id="chk_2D" type="checkbox" checked="true"></label>
+    <label id="lbl_capture" style="display: inline-block; visibility: hidden;">Show Capture<input id="chk_capture" type="checkbox"></label>
+    <label style="display: inline-block;">Capture View<button id="btn_capture" style="display: block; margin-left: auto; margin-right: auto;">📷</button></label>
   </div>
 
   <div id="ui-toggle"  style="display: inline-flex;">
     <button title="Toggle UI Panel" onclick="toggleUIPanelVisibility()">☰</button>
-    <input title="Set UI Transparency" id="ui-slider" type="range" min="1" max="10" step="1" value="5">
+    <input title="Set UI Transparency" id="ui-slider" type="range" min="1" max="10" step="1" value="6">
   </div>
   <script>
     const ui_panel = document.getElementById("ui");
@@ -56,7 +58,7 @@
     ui_toggle.style.opacity = ui_slider.value / 10;
 
     function toggleUIPanelVisibility() {
-      (ui_panel.style.visibility == "hidden") ? ui_panel.style.visibility = "visible" : ui_panel.style.visibility = "hidden";
+      (ui_panel.style.display === "none") ? ui_panel.style.display = "" : ui_panel.style.display = "none";
     }
     ui_slider.oninput = function updateUIPanelOpacity() {
       ui_panel.style.opacity = ui_slider.value / 10;
@@ -102,6 +104,7 @@
     camera.layers.enable(0);
     camera.layers.enable(1);
     camera.layers.enable(2);
+    camera.layers.enable(3);
     
     const lbl_2D = makeLabel('ORTHOGRAPHIC - 2D VIEWS', size/2, 10);
     const orthoSize = 3;
@@ -133,7 +136,10 @@
     // ---------------- OBJECTS ----------------
 
     // AXES
-    const axes = new THREE.AxesHelper(1);
+    const axes = new THREE.AxesHelper(0.5);
+    axes.alpha = true;
+    axes.transparent = true;
+    axes.opacity = 0.5;
     scene.add(axes);
 
     // CUBE
@@ -344,6 +350,32 @@
 
     applyRotation();
 
+    // ---------------- CAPTURE VIEW ----------------
+    const btn_capture = document.getElementById("btn_capture");
+    const chk_capture = document.getElementById("chk_capture");
+    const lbl_capture = document.getElementById("lbl_capture");
+    const capture_edges = new THREE.EdgesGeometry(box.geometry);
+    const capture_line_mat = new THREE.LineBasicMaterial({ color: 0x820071, transparent: true, opacity: 0.25 });
+    const capture_linesegs = new THREE.LineSegments(capture_edges, capture_line_mat);
+    btn_capture.addEventListener('click', () => {
+      capture_linesegs.rotation.copy(box_group.rotation);
+      capture_linesegs.layers.set(3);
+      scene.add(capture_linesegs);
+      lbl_capture.style.visibility = "visible";
+      chk_capture.checked = true;
+      toggleCapture();
+    });
+
+    function toggleCapture() {
+      if (chk_capture.checked) {
+        camera.layers.enable(3);
+      } else {
+        camera.layers.disable(3);
+      }
+    }
+
+    chk_capture.addEventListener('input', toggleCapture);
+
     // ---------------- MOUSE ROTATION ----------------
     let down = false, lx = 0, ly = 0;
     renderer.domElement.addEventListener('mousedown', e => { down = true; lx = e.clientX; ly = e.clientY; });
@@ -386,7 +418,7 @@
       renderer.setScissor(x, y, w, h);
       renderer.render(scene, cam);
     }
-    renderer.setClearColor(0x000000, 0);
+
     function animate() {
       requestAnimationFrame(animate);
       renderer.setScissorTest(true);
