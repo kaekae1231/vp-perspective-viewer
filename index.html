@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Cube with Infinite Extrusions + Multi-View</title>
+  <title>Vanishing Point Perspective Viewer</title>
   <style>
     body { margin: 0; overflow: hidden; background: #000; color: #fff; font-family: sans-serif; }
     /* body { margin: 0; overflow: hidden; background: #fff; font-family: sans-serif; } */
@@ -11,14 +11,24 @@
       left: 10px;
       top: 10px;
       width: 350px;
-      background: rgba(30,30,30,0.9);
+      background: rgba(30,30,30,0.5);
       /* background: rgba(240,240,240,0.95); */
       padding: 12px;
       border-radius: 8px;
       box-shadow: 0 6px 20px rgba(0,0,0,0.15);
     }
-    label { font-size: 12px; display: block; margin-top: 10px; }
+    #ui-toggle {
+      position: absolute;
+      left: 10px;
+      bottom: 10px;
+      background: rgba(30,30,30,0.5);
+      padding: 12px;
+      border-radius: 8px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+    }
+    label { font-size: 12px; margin-top: 10px; }
     input { width: 100%; }
+    button { font-size: 16px; background-color: rgba(160,160,160,0.2); border-radius: 4px; }
   </style>
 </head>
 <body>
@@ -30,9 +40,29 @@
     <label>Rotate Y<input id="ry" type="range" min="-3.14" max="3.14" step="0.01" value="0.7"></label>
     <label>Rotate Z<input id="rz" type="range" min="-3.14" max="3.14" step="0.01" value="0"></label> -->
     <label>Zoom<span id="zoomContent"></span><input id="zoom" type="range" min="1" max="8" step="0.5" value="5"></label>
-    <label>Show Ghost<input id="chk_ghost" type="checkbox" checked="true"></label>
-    <label>Show 2D Views<input id="chk_2D" type="checkbox" checked="true"></label>
+    <label style="display: inline-block;">Show Ghost<input id="chk_ghost" type="checkbox" checked="true"></label>
+    <label style="display: inline-block;">Show 2D Views<input id="chk_2D" type="checkbox" checked="true"></label>
   </div>
+
+  <div id="ui-toggle"  style="display: inline-flex;">
+    <button title="Toggle UI Panel" onclick="toggleUIPanelVisibility()">☰</button>
+    <input title="Set UI Transparency" id="ui-slider" type="range" min="1" max="10" step="1" value="5">
+  </div>
+  <script>
+    const ui_panel = document.getElementById("ui");
+    const ui_slider = document.getElementById("ui-slider");
+    const ui_toggle = document.getElementById("ui-toggle");
+    ui_panel.style.opacity = ui_slider.value / 10;
+    ui_toggle.style.opacity = ui_slider.value / 10;
+
+    function toggleUIPanelVisibility() {
+      (ui_panel.style.visibility == "hidden") ? ui_panel.style.visibility = "visible" : ui_panel.style.visibility = "hidden";
+    }
+    ui_slider.oninput = function updateUIPanelOpacity() {
+      ui_panel.style.opacity = ui_slider.value / 10;
+      ui_toggle.style.opacity = ui_slider.value / 10;
+    }
+  </script>
 
   <script type="module">
     // https://threejs.org/docs/
@@ -44,6 +74,7 @@
     // scene.background = new THREE.Color(0xffffff);
 
     // ---------------- CAMERAS ----------------
+    // By default, all cameras see Layer 0 only.
     function makeLabel(text, x, y) {
       const el = document.createElement('div');
       el.textContent = text;
@@ -94,7 +125,7 @@
 
 
     // ---------------- RENDERER ----------------
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(window.devicePixelRatio);
     document.body.appendChild(renderer.domElement);
@@ -211,6 +242,7 @@
 
     const horizon = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.CircleGeometry(extent, 32)), mat);
     horizon.rotateX(THREE.MathUtils.degToRad('90'));
+    horizon.layers.set(1);
     group.add(horizon);
     scene.add(group);
 
@@ -354,7 +386,7 @@
       renderer.setScissor(x, y, w, h);
       renderer.render(scene, cam);
     }
-    
+    renderer.setClearColor(0x000000, 0);
     function animate() {
       requestAnimationFrame(animate);
       renderer.setScissorTest(true);
@@ -389,15 +421,7 @@
     animate();
   </script>
 
-  <div style="
-    position:fixed;
-    bottom:8px;
-    right:8px;
-    font-size:10px;
-    color:#999;
-  ">
-  Built with Three.js
-  </div>
+  <div style="position:fixed; bottom:8px; right:8px; font-size:10px; color:#999;">Built with Three.js</div>
 
 </body>
 </html>
