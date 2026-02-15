@@ -46,9 +46,16 @@
     <label style="display: inline-block;">Capture View<button id="btn_capture" style="display: block; margin-left: auto; margin-right: auto;">📷</button></label>
   </div>
 
-  <div id="ui-toggle"  style="display: inline-flex;">
-    <button title="Toggle UI Panel" onclick="toggleUIPanelVisibility()">☰</button>
-    <input title="Set UI Transparency" id="ui-slider" type="range" min="1" max="10" step="1" value="6">
+  <div id="ui-toggle">
+    <div style="display: inline-flex;">
+      <button title="Toggle Cube / Sphere" id="toggle_sphere_inner">◯</button>
+      <!-- <input title="Set Cube Transparency" id="ui-slider-cube" type="range" min="1" max="10" step="1" value="10"> -->
+    </div>
+    <!-- <div></div> -->
+    <div style="display: inline-flex;">
+      <button title="Toggle UI Panel" onclick="toggleUIPanelVisibility()">☰</button>
+      <input title="Set UI Transparency" id="ui-slider" type="range" min="1" max="10" step="1" value="6">
+    </div>
   </div>
   <script>
     const ui_panel = document.getElementById("ui");
@@ -101,10 +108,9 @@
     const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 10000);
     const zoom = document.getElementById('zoom');
     camera.position.z = 10 - zoom.value;
-    camera.layers.enable(0);
-    camera.layers.enable(1);
-    camera.layers.enable(2);
-    camera.layers.enable(3);
+    camera.layers.enable(0); // Cube
+    camera.layers.enable(1); // Perspective Lines
+    camera.layers.enable(2); // Cube Ghost
     
     const lbl_2D = makeLabel('ORTHOGRAPHIC - 2D VIEWS', size/2, 10);
     const orthoSize = 3;
@@ -148,7 +154,7 @@
     const cube_extent = 1;
 
     const box = new THREE.Mesh(
-      new THREE.BoxGeometry(2, 2, 2),
+      new THREE.BoxGeometry(s*2, s*2, s*2),
       new THREE.MeshBasicMaterial({ color: 0x5555ff, transparent: true, opacity: 0.35, depthWrite: false})
     );
     box.layers.set(0);
@@ -252,7 +258,64 @@
     group.add(horizon);
     scene.add(group);
 
-    // SPHERE
+
+    // ---------------- TOGGLE SPHERE - INNER ----------------
+    let sphere_inner_on = false
+    const toggle_sphere_inner = document.getElementById("toggle_sphere_inner");
+    const sphere_inner_line_mat = new THREE.LineBasicMaterial({ color: 0x820071, transparent: true, opacity: 0.1 });
+    const sphere_inner_circle_mat = new THREE.LineBasicMaterial({ color: 0x820071, transparent: true, opacity: 0.9 });
+
+    const sphere_inner = new THREE.SphereGeometry(s);
+    const sphere_inner_circle = new THREE.CircleGeometry(s);
+    const sphere_inner_plane_x = sphere_inner_circle.clone();
+    sphere_inner_plane_x.rotateX(THREE.MathUtils.degToRad('90'));
+    const sphere_inner_plane_y = sphere_inner_circle.clone();
+    sphere_inner_plane_y.rotateY(THREE.MathUtils.degToRad('90'));
+    const sphere_inner_plane_z = sphere_inner_circle.clone();
+    sphere_inner_plane_z.rotateZ(THREE.MathUtils.degToRad('90'));
+
+    const sphere_inner_linesegs_sphere = new THREE.LineSegments(new THREE.EdgesGeometry(sphere_inner), sphere_inner_line_mat);
+    const sphere_inner_linesegs_circle = new THREE.LineSegments(new THREE.EdgesGeometry(sphere_inner_circle), sphere_inner_circle_mat);
+    const sphere_inner_linesegs_x = new THREE.LineSegments(new THREE.EdgesGeometry(sphere_inner_plane_x), cube_lines_mat_top);
+    const sphere_inner_linesegs_y = new THREE.LineSegments(new THREE.EdgesGeometry(sphere_inner_plane_y), cube_lines_mat_sides);
+    const sphere_inner_linesegs_z = new THREE.LineSegments(new THREE.EdgesGeometry(sphere_inner_plane_z), cube_lines_mat_bot);
+    sphere_inner_linesegs_x.layers.set(4);
+    sphere_inner_linesegs_y.layers.set(4);
+    sphere_inner_linesegs_z.layers.set(4);
+    sphere_inner_linesegs_circle.layers.set(4);
+    sphere_inner_linesegs_sphere.layers.set(4);
+
+    const sphere_inner_linesegs = new THREE.Group();
+    sphere_inner_linesegs.add(sphere_inner_linesegs_sphere);
+    sphere_inner_linesegs.add(sphere_inner_linesegs_x);
+    sphere_inner_linesegs.add(sphere_inner_linesegs_y);
+    sphere_inner_linesegs.add(sphere_inner_linesegs_z);
+    
+    toggle_sphere_inner.addEventListener('click', () => {
+      sphere_inner_linesegs.rotation.copy(box_group.rotation);
+      sphere_inner_linesegs.layers.set(4);
+      scene.add(sphere_inner_linesegs_circle);
+      scene.add(sphere_inner_linesegs);
+      sphere_inner_on = !sphere_inner_on;
+      toggleSphereInner();
+    });
+
+    function toggleSphereInner() {
+      if (sphere_inner_on) {
+        camera.layers.enable(4);
+        camTop.layers.enable(4);
+        camSideX.layers.enable(4);
+        camSideZ.layers.enable(4);
+      } else {
+        camera.layers.disable(4);
+        camTop.layers.disable(4);
+        camSideX.layers.disable(4);
+        camSideZ.layers.disable(4);
+        sphere_inner_on = false
+      }
+    }
+
+    // SPHERE - OUTER
     const radius = Math.sqrt(3);
     const sphere = new THREE.Mesh(
       new THREE.SphereGeometry(radius, 64, 48),
@@ -310,6 +373,7 @@
       group.rotation.set(rotation.x, rotation.y, rotation.z);
       box_group.rotation.copy(group.rotation);
       sphere.rotation.copy(group.rotation);
+      sphere_inner_linesegs.rotation.copy(group.rotation);
       axes.rotation.copy(group.rotation);
 
       rx.value = THREE.MathUtils.radToDeg(rotation.x);
